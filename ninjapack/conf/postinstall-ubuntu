@@ -1,2 +1,0 @@
-/opt/ninjablocks/bin/nservice -q driver-block stop || true
-/opt/ninjablocks/bin/nservice -q driver-block start || true

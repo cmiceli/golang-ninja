@@ -39,49 +39,49 @@ type DeviceData struct {
 	DA interface{}
 }
 
-func Connect(path string, baudRate int) (arduino *Arduino, err error) {
+func Connect(path string, baudRate int, callbacks ...func(DeviceData)) (arduino *Arduino, err error) {
 
-	config := &serial.Config{Name: path, Baud: baudRate}
-	conn, err := serial.OpenPort(config)
-	if err != nil {
-		return
-	}
+	for {
 
-	arduino = &Arduino{
-		Incoming: make(chan Message, 10),
-		port:     conn,
-		acks:     make(chan []DeviceData),
-	}
+		config := &serial.Config{Name: path, Baud: baudRate}
+		conn, err := serial.OpenPort(config)
+		if err != nil {
+			fmt.Printf("Connection error: %v", err)
+			return arduino, err
+		}
 
-	reader := bufio.NewReader(conn)
-	go func() {
+		arduino = &Arduino{
+			port:         conn,
+			acks:         make(chan []DeviceData),
+			onDeviceData: callbacks,
+		}
+
+		reader := bufio.NewReader(conn)
 		for {
 			str, err := reader.ReadString('\n')
+			if err == io.EOF {
+				fmt.Println("Got an EOF")
+				time.Sleep(time.Second)
+				break
+			}
 			if err != nil {
-				log.Warningf("Failed to read message from serial port: %s", err)
+				fmt.Printf("Failed to read message from serial port: %s\n", err)
 				continue
 			}
 
-			log.Infof("Incoming: %s", str)
 			var msg Message
 			err = json.Unmarshal([]byte(str), &msg)
 
 			if err != nil {
-				log.Warningf("Error parsing json: %s", err)
+				continue
 			}
 
 			if msg.ACK != nil {
 				select {
 				case arduino.acks <- msg.ACK:
 				default:
-					log.Warningf("Got ack we weren't listening for")
+					fmt.Printf("Got ack we weren't listening for\n")
 				}
-			}
-
-			select {
-			case arduino.Incoming <- msg:
-			default:
-				log.Warningf("Incoming channel is full. Ignoring message: %s", str)
 			}
 
 			for _, cb := range arduino.onDeviceData {
@@ -94,7 +94,8 @@ func Connect(path string, baudRate int) (arduino *Arduino, err error) {
 			}
 
 		}
-	}()
+		conn.Close()
+	}
 
 	return
 }

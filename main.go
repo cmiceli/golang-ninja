@@ -1,13 +1,26 @@
 package main
 
-import "github.com/ninjasphere/go-ninja/support"
+import (
+	"fmt"
+	"github.com/ninjasphere/go-ninja/logger"
+
+	"github.com/ninjasphere/driver-block/arduino"
+)
+
+var log = logger.GetLogger("PiCrust")
+
+var path = "/dev/ttyAMA0"
+var speed = 9600
+
+func arduinoPrinter(a arduino.DeviceData) {
+	fmt.Printf("Got data: %s %d %d %v\n", a.G, a.V, a.D, a)
+}
 
 func main() {
 
-	if _, err := NewDriver(); err != nil {
-		log.Errorf("Failed to create driver: %s", err)
-		return
-	}
+	_, err := arduino.Connect(path, speed, arduinoPrinter)
 
-	support.WaitUntilSignal()
+	if err != nil {
+		fmt.Printf("Couldn't connect to arduino: %s\n", err)
+	}
 }
